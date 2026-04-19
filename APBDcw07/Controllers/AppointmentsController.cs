@@ -29,7 +29,8 @@ namespace APBDcw07.Controllers
         public async Task<IActionResult> CreateAppointment(CreateAppointmentRequestDto appointment)
         {
             var appointmentDetails = await appointmentService.CreateAppointmentAsync(appointment);
-            return Ok();
+            if (!appointmentDetails.IsSuccess) return BadRequest(appointmentDetails.Message);
+            return Created();
         }
 
         [HttpPut]

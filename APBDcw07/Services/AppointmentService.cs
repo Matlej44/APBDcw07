@@ -1,7 +1,4 @@
-﻿using System.Collections.Immutable;
-using System.Configuration;
-using APBDcw07.DTOs;
-using Microsoft.AspNetCore.Mvc;
+﻿using APBDcw07.DTOs;
 using Microsoft.Data.SqlClient;
 
 namespace APBDcw07.Services;
@@ -15,7 +12,7 @@ public class AppointmentService(IConfiguration configuration) : IAppointmentServ
         var appointmentListDtos = new List<AppointmentListDto>();
         await using var connection = new SqlConnection(_connectionString);
         await connection.OpenAsync();
-        using var command = new SqlCommand(
+        await using var command = new SqlCommand(
             "SELECT " +
             "    a.IdAppointment, " +
             "    a.AppointmentDate, " +
@@ -32,7 +29,7 @@ public class AppointmentService(IConfiguration configuration) : IAppointmentServ
 
         command.Parameters.AddWithValue("@Status", (object)status ?? DBNull.Value);
         command.Parameters.AddWithValue("@PatientLastName", (object)lastName ?? DBNull.Value);
-        var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync();
         while (reader.Read())
         {
             appointmentListDtos.Add(new AppointmentListDto
@@ -54,16 +51,16 @@ public class AppointmentService(IConfiguration configuration) : IAppointmentServ
         await using var connection = new SqlConnection(_connectionString);
         await connection.OpenAsync();
         AppointmentDetailsDto? appointmentDetailsDto = null;
-        var command = new SqlCommand("Select P.Email, " +
-                                     " P.PhoneNumber, " +
-                                     " D.LicenseNumber, " +
-                                     " A.InternalNotes, "+
-                                     " A.CreatedAt " +
-                                     " FROM Appointments A JOIN dbo.Patients P on A.IdPatient = P.IdPatient " +
-                                     " JOIN dbo.Doctors D on D.IdDoctor = A.IdDoctor " +
-                                     " WHERE A.IdAppointment=@id; ", connection);
+        await using var command = new SqlCommand("Select P.Email, " +
+                                                 " P.PhoneNumber, " +
+                                                 " D.LicenseNumber, " +
+                                                 " A.InternalNotes, "+
+                                                 " A.CreatedAt " +
+                                                 " FROM Appointments A JOIN dbo.Patients P on A.IdPatient = P.IdPatient " +
+                                                 " JOIN dbo.Doctors D on D.IdDoctor = A.IdDoctor " +
+                                                 " WHERE A.IdAppointment=@id; ", connection);
         command.Parameters.AddWithValue("@id", id);
-        var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync();
         while (reader.Read())
         {
             appointmentDetailsDto = new AppointmentDetailsDto()
@@ -78,9 +75,63 @@ public class AppointmentService(IConfiguration configuration) : IAppointmentServ
         return appointmentDetailsDto;
     }
 
-    public Task<ErrorResponseDto> CreateAppointmentAsync(CreateAppointmentRequestDto appointment)
+    public async Task<ErrorResponseDto> CreateAppointmentAsync(CreateAppointmentRequestDto appointment)
     {
-        throw new NotImplementedException();
+        var errorResponseDto = new ErrorResponseDto
+        {
+            IsSuccess = true
+        };
+        await using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync();
+        if (appointment.appointmentDate< DateTime.Now)
+        {
+            errorResponseDto.IsSuccess = false;
+            errorResponseDto.Message = "Appointment date must be in the future.";
+            return errorResponseDto;
+        }
+        
+        await using var IsActive = new SqlCommand("Select IdDoctor FROM Doctors WHERE IdDoctor=@idDoctor AND IsActive=1;", connection);
+        IsActive.Parameters.AddWithValue("@idDoctor", appointment.idDoctor);
+        var executeScalar = IsActive.ExecuteScalar();
+        if (executeScalar is null or DBNull)
+        {
+            errorResponseDto.IsSuccess = false;
+            errorResponseDto.Message = "Doctor is not active.";
+            return errorResponseDto;
+        }
+        
+        await using var IsPatientActive = new SqlCommand("Select IdPatient FROM Patients WHERE IdPatient=@idPatient AND IsActive=1;", connection);
+        IsPatientActive.Parameters.AddWithValue("@idPatient", appointment.idPatient);
+        var executeScalarPatient = IsPatientActive.ExecuteScalar();
+        if (executeScalarPatient is null or DBNull)
+        {
+            errorResponseDto.IsSuccess = false;
+            errorResponseDto.Message = "Patient is not active.";
+            return errorResponseDto;
+        }
+        
+        await using var IsBooked = new SqlCommand("Select IdDoctor FROM Appointments WHERE AppointmentDate=@appointment AND IdDoctor=@idDoctor;", connection);
+        IsBooked.Parameters.AddWithValue("@appointment", appointment.appointmentDate);
+        IsBooked.Parameters.AddWithValue("@idDoctor", appointment.idDoctor);
+        var executeScalarBooked = IsBooked.ExecuteScalar();
+        if (executeScalarBooked is not null or DBNull)
+        {
+            errorResponseDto.IsSuccess = false;
+            errorResponseDto.Message = "Doctor is already booked for this date.";
+            return errorResponseDto;
+        }
+
+        await using var create = new SqlCommand(
+            "Insert INTO Appointments(idpatient, iddoctor, appointmentdate, status, reason, createdat) " +
+            " VALUES (@idPatient, @idDoctor, @appointmentDate, 'Scheduled', @reason, GETDATE());", connection);
+        create.Parameters.AddWithValue("@idPatient", appointment.idPatient);
+        create.Parameters.AddWithValue("@idDoctor", appointment.idDoctor);
+        create.Parameters.AddWithValue("@appointmentDate", appointment.appointmentDate);
+        create.Parameters.AddWithValue("@reason", appointment.reason);
+        var executeNonQueryAsync = await create.ExecuteNonQueryAsync();
+        if (executeNonQueryAsync != 0) return errorResponseDto;
+        errorResponseDto.IsSuccess = false;
+        return errorResponseDto;
     }
 
     public Task<ErrorResponseDto> UpdateAppointmentAsync(int id, UpdateAppointmentRequestDto appointment)

@@ -11,5 +11,8 @@ public class CreateAppointmentRequestDto
     [Required]
     public DateTime appointmentDate{get;set;}
     [Required]
+    [MaxLength(250)]
+    [MinLength(1)]
     public string reason{get;set;}
+
 }
