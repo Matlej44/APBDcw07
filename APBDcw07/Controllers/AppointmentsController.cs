@@ -1,6 +1,8 @@
+using APBDcw07.DTOs;
 using APBDcw07.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
 
 namespace APBDcw07.Controllers
 {
@@ -8,13 +10,42 @@ namespace APBDcw07.Controllers
     [ApiController]
     public class AppointmentsController(IAppointmentService appointmentService) : ControllerBase
     {
-        private readonly IAppointmentService _appointmentService = appointmentService;
-
         [HttpGet]
-        public async Task<IActionResult> GetAllAppointments()
+        public async Task<IActionResult> GetAllAppointments([FromQuery] string? status = null, [FromQuery] string? patientLastName = null)
         {
-            var appointments = await _appointmentService.GetAllAppointmentsAsync();
+            var appointments = await appointmentService.GetAllAppointmentsAsync(status, patientLastName);
+            return Ok(appointments);
+        }
+        
+        [HttpGet]
+        [Route("{id:int}")]
+        public async Task<IActionResult> GetAppointment(int id)
+        {
+            var appointment = await appointmentService.GetAppointmentAsync(id);
             return Ok();
         }
+        [HttpPost]
+        public async Task<IActionResult> CreateAppointment(CreateAppointmentRequestDto appointment)
+        {
+            var appointmentDetails = await appointmentService.CreateAppointmentAsync(appointment);
+            return Ok();
+        }
+
+        [HttpPut]
+        [Route("{id:int}")]
+        public async Task<IActionResult> UpdateAppointment(int id, UpdateAppointmentRequestDto appointment)
+        {
+            var appointmentDetails = await appointmentService.UpdateAppointmentAsync(id, appointment);
+            return Ok();
+        }
+
+        [HttpDelete]
+        [Route("{id:int}")]
+        public async Task<IActionResult> DeleteAppointment(int id)
+        {
+            var appointmentDetails = await appointmentService.DeleteAppointmentAsync(id);
+            return Ok();
+        }
+
     }
 }
