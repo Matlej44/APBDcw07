@@ -49,10 +49,33 @@ public class AppointmentService(IConfiguration configuration) : IAppointmentServ
         return appointmentListDtos;
     }
 
-    public Task<AppointmentDetailsDto> GetAppointmentAsync(int id)
+    public async Task<AppointmentDetailsDto?> GetAppointmentAsync(int id)
     {
-        
-        return Task.FromResult(new AppointmentDetailsDto());
+        await using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync();
+        AppointmentDetailsDto? appointmentDetailsDto = null;
+        var command = new SqlCommand("Select P.Email, " +
+                                     " P.PhoneNumber, " +
+                                     " D.LicenseNumber, " +
+                                     " A.InternalNotes, "+
+                                     " A.CreatedAt " +
+                                     " FROM Appointments A JOIN dbo.Patients P on A.IdPatient = P.IdPatient " +
+                                     " JOIN dbo.Doctors D on D.IdDoctor = A.IdDoctor " +
+                                     " WHERE A.IdAppointment=@id; ", connection);
+        command.Parameters.AddWithValue("@id", id);
+        var reader = await command.ExecuteReaderAsync();
+        while (reader.Read())
+        {
+            appointmentDetailsDto = new AppointmentDetailsDto()
+            {
+                Email = reader.GetString(0),
+                PhoneNumber = reader.GetString(1),
+                DoctorLicenceNumber = reader.GetString(2),
+                Notes = reader["InternalNotes"] is DBNull ? string.Empty : reader.GetString(3),
+                AppointmentDate = reader.GetDateTime(4)
+            };
+        }
+        return appointmentDetailsDto;
     }
 
     public Task<ErrorResponseDto> CreateAppointmentAsync(CreateAppointmentRequestDto appointment)

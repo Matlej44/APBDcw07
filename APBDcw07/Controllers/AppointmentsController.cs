@@ -22,7 +22,8 @@ namespace APBDcw07.Controllers
         public async Task<IActionResult> GetAppointment(int id)
         {
             var appointment = await appointmentService.GetAppointmentAsync(id);
-            return Ok();
+            if (appointment == null) return NotFound();
+            return Ok(appointment);
         }
         [HttpPost]
         public async Task<IActionResult> CreateAppointment(CreateAppointmentRequestDto appointment)
