@@ -1,3 +1,4 @@
+using System.Net;
 using APBDcw07.DTOs;
 using APBDcw07.Services;
 using Microsoft.AspNetCore.Http;
@@ -29,8 +30,7 @@ namespace APBDcw07.Controllers
         public async Task<IActionResult> CreateAppointment(CreateAppointmentRequestDto appointment)
         {
             var appointmentDetails = await appointmentService.CreateAppointmentAsync(appointment);
-            if (!appointmentDetails.IsSuccess) return BadRequest(appointmentDetails.Message);
-            return Created();
+            return !appointmentDetails.IsSuccess ? StatusCode(appointmentDetails.StatusCode, appointmentDetails.Message) : Created();
         }
 
         [HttpPut]
@@ -38,7 +38,8 @@ namespace APBDcw07.Controllers
         public async Task<IActionResult> UpdateAppointment(int id, UpdateAppointmentRequestDto appointment)
         {
             var appointmentDetails = await appointmentService.UpdateAppointmentAsync(id, appointment);
-            return Ok();
+            if (!appointmentDetails.IsSuccess) return StatusCode(appointmentDetails.StatusCode, appointmentDetails.Message);
+            return Created();
         }
 
         [HttpDelete]
@@ -46,7 +47,8 @@ namespace APBDcw07.Controllers
         public async Task<IActionResult> DeleteAppointment(int id)
         {
             var appointmentDetails = await appointmentService.DeleteAppointmentAsync(id);
-            return Ok();
+            if (!appointmentDetails.IsSuccess) return StatusCode(appointmentDetails.StatusCode, appointmentDetails.Message);
+            return NoContent();
         }
 
     }
